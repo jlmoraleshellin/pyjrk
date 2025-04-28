@@ -139,7 +139,7 @@ class PyJrk_Variables(object):
         self._jrk_variables = jrk_variables()
         
         self.pin_info = []
-        for i in range(0, jc['TIC_CONTROL_PIN_COUNT']):
+        for i in range(0, jc['JRK_CONTROL_PIN_COUNT']):
             self.pin_info.append(type('pinfo_'+str(i), (object,), {})())
 
         self._convert_structure_to_readonly_properties()
@@ -150,7 +150,7 @@ class PyJrk_Variables(object):
                 prop = property(fget=partial(self._get_jrk_readonly_property, field[0]))
                 setattr(self.__class__, field[0], prop)
         
-        for i in range(0, jc['TIC_CONTROL_PIN_COUNT']):
+        for i in range(0, jc['JRK_CONTROL_PIN_COUNT']):
             for field in pin_info._fields_:
                 prop = property(fget=partial(self._get_pin_readonly_property, field[0], i))
                 setattr(self.pin_info[i].__class__, field[0], prop)
@@ -174,20 +174,20 @@ class PyJrk_Variables(object):
         return getattr(self._jrk_variables.pin_info[pin_num], field)
 
     def _convert_error_bitmask(self, e_bit_mask):
-        ecodes = ["TIC_ERROR_INTENTIONALLY_DEENERGIZED",
-                  "TIC_ERROR_MOTOR_DRIVER_ERROR",
-                  "TIC_ERROR_LOW_VIN",
-                  "TIC_ERROR_KILL_SWITCH",
-                  "TIC_ERROR_REQUIRED_INPUT_INVALID",
-                  "TIC_ERROR_SERIAL_ERROR",
-                  "TIC_ERROR_COMMAND_TIMEOUT",
-                  "TIC_ERROR_SAFE_START_VIOLATION",
-                  "TIC_ERROR_ERR_LINE_HIGH",
-                  "TIC_ERROR_SERIAL_FRAMING",
-                  "TIC_ERROR_SERIAL_RX_OVERRUN",
-                  "TIC_ERROR_SERIAL_FORMAT",
-                  "TIC_ERROR_SERIAL_CRC",
-                  "TIC_ERROR_ENCODER_SKIP"]
+        ecodes = ["JRK_ERROR_AWAITING_COMMAND",
+                  "JRK_ERROR_NO_POWER",
+                  "JRK_ERROR_MOTOR_DRIVER",
+                  "JRK_ERROR_INPUT_INVALID",
+                  "JRK_ERROR_INPUT_DISCONNECT",
+                  "JRK_ERROR_FEEDBACK_DISCONNECT",
+                  "JRK_ERROR_SOFT_OVERCURRENT",
+                  "JRK_ERROR_SERIAL_SIGNAL",
+                  "JRK_ERROR_SERIAL_OVERRUN",
+                  "JRK_ERROR_SERIAL_BUFFER_FULL",
+                  "JRK_ERROR_SERIAL_CRC",
+                  "JRK_ERROR_SERIAL_PROTOCOL",
+                  "JRK_ERROR_SERIAL_TIMEOUT",
+                  "JRK_ERROR_HARD_OVERCURRENT"]
         for code in ecodes:
             if ((e_bit_mask >> jc[code]) & 1):
                 self._logger.error(code)
@@ -204,7 +204,7 @@ class PyJrk_Settings(object):
         self._device_settings_p = POINTER(jrk_settings)()
         
         self.pin_settings = []
-        for i in range(0, jc['TIC_CONTROL_PIN_COUNT']):
+        for i in range(0, jc['JRK_CONTROL_PIN_COUNT']):
             self.pin_settings.append(type('pset_'+str(i), (object,), {})())
         
         self._convert_structure_to_properties()
@@ -223,7 +223,7 @@ class PyJrk_Settings(object):
                                 fset=partial(self._set_jrk_settings_with_option, field[0]))
                 setattr(self.__class__, field[0], prop)
 
-        for i in range(0, jc['TIC_CONTROL_PIN_COUNT']):
+        for i in range(0, jc['JRK_CONTROL_PIN_COUNT']):
             for field in pin_settings._fields_:
                 prop = property(fget=partial(self._get_pin_settings_from_device, field[0], i),
                                 fset=partial(self._set_pin_settings_with_option, field[0], i))
