@@ -31,7 +31,7 @@ class jrk_device(Structure):
         ("serial_number", c_char_p),
         ("os_id", c_char_p),
         ("firmware_version", c_uint16),
-        ("product", c_uint8),
+        ("product", c_uint32),
     ]
 
 
