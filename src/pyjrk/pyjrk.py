@@ -65,7 +65,7 @@ class PyJrk(object):
             # Windows DLL paths
             pass
             #self.usblib = windll.LoadLibrary(file_path + "\\drivers\\x64\\libusbp-1.dll")
-            #self.ticlib = windll.LoadLibrary(file_path + "\\drivers\\x64\\libpololu-tic-1.dll")
+            #self.jrklib = windll.LoadLibrary(file_path + "\\drivers\\x64\\libpololu-jrk2-1.dll")
         elif platform.system() == 'Linux':
             # Linux shared library paths
             self.usblib = CDLL(file_path + "/drivers/linux/libusbp-1.so")
@@ -203,10 +203,6 @@ class PyJrk_Settings(object):
         self._device_settings = jrk_settings()
         self._device_settings_p = POINTER(jrk_settings)()
         
-        self.pin_settings = []
-        for i in range(0, jc['JRK_CONTROL_PIN_COUNT']):
-            self.pin_settings.append(type('pset_'+str(i), (object,), {})())
-        
         self._convert_structure_to_properties()
         self.auto_apply = False
 
@@ -218,16 +214,9 @@ class PyJrk_Settings(object):
 
     def _convert_structure_to_properties(self):
         for field in jrk_settings._fields_:
-            if not field[0] == 'pin_settings':
-                prop = property(fget=partial(self._get_jrk_settings_from_device, field[0]),
-                                fset=partial(self._set_jrk_settings_with_option, field[0]))
-                setattr(self.__class__, field[0], prop)
-
-        for i in range(0, jc['JRK_CONTROL_PIN_COUNT']):
-            for field in pin_settings._fields_:
-                prop = property(fget=partial(self._get_pin_settings_from_device, field[0], i),
-                                fset=partial(self._set_pin_settings_with_option, field[0], i))
-                setattr(self.pin_settings[i].__class__, field[0], prop)
+            prop = property(fget=partial(self._get_jrk_settings_from_device, field[0]),
+                            fset=partial(self._set_jrk_settings_with_option, field[0]))
+            setattr(self.__class__, field[0], prop)
 
     def _get_jrk_settings_from_device(self, field, obj):
         self._pull_device_settings()
@@ -237,16 +226,6 @@ class PyJrk_Settings(object):
         setattr(self._local_settings, field, value)
         if (self.auto_apply):
             self.apply()
-
-    def _get_pin_settings_from_device(self, field, pin_num, obj):
-        self._pull_device_settings()
-        return getattr(self._device_settings.pin_settings[pin_num], field)
-
-    def _set_pin_settings_with_option(self, field, pin_num, obj, value):
-        setattr(self._local_settings.pin_settings[pin_num], field)
-        if (self.auto_apply):
-            self.apply()
-
         
     @JED
     def _pull_device_settings(self):
@@ -307,23 +286,11 @@ class PyJrk_Settings(object):
 
         for setting in cfg_settings: 
             if setting in jrk_settings_list:
-                if setting == 'pin_settings':
-                    for pin in cfg_settings['pin_settings']:
-                        i = jc[pin['pin_num']]
-                        if 'func' in pin:
-                            self._local_settings.pin_settings[i].func = jc[pin['func']]
-                        if 'pullup' in pin:
-                            self._local_settings.pin_settings[i].pullup = pin['pullup']
-                        if 'analog' in pin:
-                            self._local_settings.pin_settings[i].analog = pin['analog']
-                        if 'polarity' in pin:
-                            self._local_settings.pin_settings[i].polarity = pin['polarity']
+                if 'JRK' in str(cfg_settings[setting]):
+                    value = jc[cfg_settings[setting]]
                 else:
-                    if 'JRK' in str(cfg_settings[setting]):
-                        value = jc[cfg_settings[setting]]
-                    else:
-                        value = cfg_settings[setting]
-                    setattr(self._local_settings, setting, value)
+                    value = cfg_settings[setting]
+                setattr(self._local_settings, setting, value)
 
         if (self.auto_apply):
             self.apply()
