@@ -121,8 +121,9 @@ class PyJrk(object):
                 self.device = self._dev_pp[0][i]
                 self._jrk_handle_open()
                 self.variables = PyJrk_Variables(self.handle, (self.usblib, self.jrklib))
-                # TODO there is no product field in PyJrk_variables
-                self.settings = PyJrk_Settings(self.handle, (self.usblib, self.jrklib), self.variables.product)
+                # TEST there is no product field in PyJrk_variables
+                # Maybe retrieve product from the jrk_device object, otherwise provide through config
+                self.settings = PyJrk_Settings(self.handle, (self.usblib, self.jrklib), int(self.device.product))
                 return 0
         if not self.device:
             self._logger.error("Serial number device not found.")
@@ -193,7 +194,7 @@ class PyJrk_Variables(object):
 
         
 class PyJrk_Settings(object):
-    def __init__(self, device_handle, driver_handles, product):
+    def __init__(self, device_handle, driver_handles, product: int):
         self.usblib, self.jrklib = driver_handles
         self._logger = logging.getLogger('PyJrk')
         self._device_handle = device_handle
@@ -209,8 +210,10 @@ class PyJrk_Settings(object):
         self._convert_structure_to_properties()
         self.auto_apply = False
 
-        if "JRK" in str(product):
-            product = int(jc[product])
+        # If retrieved from the device it should already be an int and protocol dict should
+        # not need to be accessed.
+        #if "JRK" in str(product):
+        #    product = int(jc[product])
         self._fill_with_defaults(product)
 
     def _convert_structure_to_properties(self):
@@ -259,7 +262,6 @@ class PyJrk_Settings(object):
         return e_p
         
     def _fill_with_defaults(self, product):
-        # How are defaults detected if there is no product reference?
         self._local_settings.product = product
         self.jrklib.jrk_settings_fill_with_defaults(byref(self._local_settings))
 
