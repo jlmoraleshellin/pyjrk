@@ -1,8 +1,8 @@
 import os
 import yaml
 from ctypes import *
-from .pyjrk_protocol import jrk_constant as jc
-from .pyjrk_structures import *
+from pyjrk.pyjrk_protocol import jrk_constant as jc
+from pyjrk.pyjrk_structures import *
 from functools import wraps, partial
 import logging
 import platform
