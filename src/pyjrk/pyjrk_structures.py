@@ -26,7 +26,7 @@ class libusbp_device(Structure):
 
 class jrk_device(Structure):
     _fields_ = [
-        ("usb_device", POINTER(libusbp_device))
+        ("usb_device", POINTER(libusbp_device)),
         ("usb_interface", POINTER(libusbp_generic_interface)),
         ("serial_number", c_char_p),
         ("os_id", c_char_p),
