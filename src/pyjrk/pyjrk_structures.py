@@ -43,16 +43,6 @@ class jrk_handle(Structure):
     ]
 
 
-# unused
-class pin_settings(Structure):
-    _fields_ = [
-        ("func", c_uint8),
-        ("pullup", c_bool),
-        ("analog", c_bool),
-        ("polarity", c_bool),
-    ]
-
-
 class jrk_settings(Structure):
     _fields_ = [
         ("product", c_uint32),
