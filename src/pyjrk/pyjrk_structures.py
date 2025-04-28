@@ -172,7 +172,7 @@ class jrk_variables(Structure):
         ("current_chopping_consecutive_count", c_uint8),
         ("current_chopping_occurrence_count", c_uint8),
         ("force_mode", c_uint8),
-        ("pin_info", pin_info * j_const["TIC_CONTROL_PIN_COUNT"]),
+        ("pin_info", pin_info * j_const["JRK_CONTROL_PIN_COUNT"]),
     ]
 
 
