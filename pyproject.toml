@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "pyjrk"
+version = "0.1.0"
+description = "Python API of pololu jrk-g2 C library"
+authors = ["Jose Luis Morales <jlmoraleshellin@gmail.com>"]
+readme = "README.md"
+packages = [
+    {include = "pyjrk", from = "src"}
+]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
