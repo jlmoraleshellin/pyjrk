@@ -64,8 +64,8 @@ class PyJrk(object):
         if platform.system() == 'Windows':
             # Windows DLL paths
             pass
-            #self.usblib = windll.LoadLibrary(file_path + "\\drivers\\x64\\libusbp-1.dll")
-            #self.jrklib = windll.LoadLibrary(file_path + "\\drivers\\x64\\libpololu-jrk2-1.dll")
+            self.usblib = windll.LoadLibrary(file_path + "\\drivers\\x64\\libusbp-1.dll") # type: ignore
+            self.jrklib = windll.LoadLibrary(file_path + "\\drivers\\x64\\libpololu-jrk2-1.dll") # type: ignore
         elif platform.system() == 'Linux':
             # Linux shared library paths
             self.usblib = CDLL(file_path + "/drivers/linux/libusbp-1.so")
