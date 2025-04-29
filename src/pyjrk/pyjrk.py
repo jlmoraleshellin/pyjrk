@@ -1,4 +1,5 @@
 import os
+from typing import Callable, Protocol, runtime_checkable
 import yaml
 from ctypes import *
 from pyjrk.pyjrk_protocol import jrk_constant as jc
@@ -6,6 +7,12 @@ from pyjrk.pyjrk_structures import *
 from functools import wraps, partial
 import logging
 import platform
+
+@runtime_checkable
+class LoggerProtocol(Protocol):
+    def info(self, message: str, *args, **kwargs) -> None: ...
+    def debug(self, message: str, *args, **kwargs) -> None: ...
+    def warning(self, message: str, *args, **kwargs) -> None: ...
 
 # [J]rk [E]rror [D]ecoder
 def JED(func):
@@ -22,9 +29,17 @@ def JED(func):
     return func_wrapper
 
 class PyJrk(object):
-    def __init__(self, log_file=None):
+    # Type annotations for dynamically created methods
+    set_target: Callable[[int], int]
+    stop_motor: Callable[[], int]
+    force_duty_cycle_target: Callable[[], int]
+    force_duty_cycle: Callable[[], int]
+    reinitialize: Callable[[int], int]
+    
+    def __init__(self, logger: LoggerProtocol = None):
+        self._logger = logger if logger else self._initialize_default_logger()
         self._load_drivers()
-        self._logger = self._initialize_logger()
+        
         self.device = None
         self.handle = None
         self.settings = None
@@ -36,7 +51,7 @@ class PyJrk(object):
                           ('reinitialize', c_uint8),]
         self._create_jrk_command_attributes()
 
-    def _initialize_logger(self):
+    def _initialize_default_logger(self):
         # - Logging - 
         self._log_level = logging.DEBUG
         _logger = logging.getLogger('PyJrk')
@@ -69,6 +84,7 @@ class PyJrk(object):
             # Linux shared library paths
             self.usblib = CDLL(file_path + "/drivers/linux/libusbp-1.so")
             self.jrklib = CDLL(file_path + "/drivers/linux/libpololu-jrk2-1.so")
+        self._logger.debug("JRK Drivers loaded")
 
     def _create_jrk_command_attributes(self):
         for cmd_name, value_c_type in self._commands:
@@ -107,7 +123,7 @@ class PyJrk(object):
         self._list_connected_devices()
         jrk_list = []
         if not self._devcnt.value:
-            print("No Jrk devices connected.")
+            self._logger.warning("No Jrk devices connected.")
         for i in range(0, self._devcnt.value):
             jrkdev = self._dev_pp[0][i]
             jrk_list.append(jrkdev.serial_number.decode('utf-8'))
@@ -119,10 +135,10 @@ class PyJrk(object):
             if serial_number == self._dev_pp[0][i].serial_number.decode('utf-8'):
                 self.device = self._dev_pp[0][i]
                 self._jrk_handle_open()
-                self.variables = PyJrk_Variables(self.handle, (self.usblib, self.jrklib))
+                self.variables = PyJrk_Variables(self.handle, (self.usblib, self.jrklib), self._logger)
                 # TEST there is no product field in PyJrk_variables
                 # Maybe retrieve product from the jrk_device object, otherwise provide through config
-                self.settings = PyJrk_Settings(self.handle, (self.usblib, self.jrklib), int(self.device.product))
+                self.settings = PyJrk_Settings(self.handle, (self.usblib, self.jrklib), int(self.device.product), self._logger)
                 return 0
         if not self.device:
             self._logger.error("Serial number device not found.")
@@ -130,10 +146,11 @@ class PyJrk(object):
 
 
 class PyJrk_Variables(object):
-    def __init__(self, device_handle, driver_handles):
-        self.usblib, self.jrklib = driver_handles
-        self._logger = logging.getLogger('PyJrk')
+    def __init__(self, device_handle, driver_handles, logger: LoggerProtocol):
         self._device_handle = device_handle
+        self.usblib, self.jrklib = driver_handles
+        self._logger = logger
+
         self._jrk_variables_p = POINTER(jrk_variables)()
         self._jrk_variables = jrk_variables()
         
@@ -193,10 +210,11 @@ class PyJrk_Variables(object):
 
         
 class PyJrk_Settings(object):
-    def __init__(self, device_handle, driver_handles, product: int):
-        self.usblib, self.jrklib = driver_handles
-        self._logger = logging.getLogger('PyJrk')
+    def __init__(self, device_handle, driver_handles, product: int, logger: LoggerProtocol):
         self._device_handle = device_handle
+        self.usblib, self.jrklib = driver_handles
+        self._logger = logger
+
         # local vs device - local settings on pc, device settings on jrk
         self._local_settings = jrk_settings()
         self._device_settings = jrk_settings()
@@ -252,12 +270,13 @@ class PyJrk_Settings(object):
                                       byref(self._local_settings))
         return e_p
         
-    def _fill_with_defaults(self, product):
+    def _fill_with_defaults(self):
         """jrk_settings_fill_with_defaults is not available on the windows DLL. Thus, a combination of restore defaults and get_eeprom_settings is used to 
         restore the JRK setting to their default and then retrieve them to fill the local settings."""
         self._jrk_restore_defaults()
         self._pull_device_settings()
         self._local_settings = self._device_settings_p[0]
+        self._logger.debug("Settings restored to factory defaults")
 
     def apply(self):
         self._settings_fix()
