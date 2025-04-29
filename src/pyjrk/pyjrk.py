@@ -205,11 +205,12 @@ class PyJrk_Settings(object):
         self._convert_structure_to_properties()
         self.auto_apply = False
 
-        # If retrieved from the device it should already be an int and protocol dict should
-        # not need to be accessed.
-        #if "JRK" in str(product):
-        #    product = int(jc[product])
-        self._fill_with_defaults(product)
+        self._fill_with_defaults()
+
+    # Maybe useful, need to # TEST
+    def _create_jrk_settings(self):
+        e_p = self.jrklib.jrk_settings_create(byref(self._device_settings_p))
+        return e_p
 
     def _convert_structure_to_properties(self):
         for field_name, field_type in jrk_settings._fields_:
@@ -252,8 +253,11 @@ class PyJrk_Settings(object):
         return e_p
         
     def _fill_with_defaults(self, product):
-        self._local_settings.product = product
-        self.jrklib.jrk_settings_fill_with_defaults(byref(self._local_settings))
+        """jrk_settings_fill_with_defaults is not available on the windows DLL. Thus, a combination of restore defaults and get_eeprom_settings is used to 
+        restore the JRK setting to their default and then retrieve them to fill the local settings."""
+        self._jrk_restore_defaults()
+        self._pull_device_settings()
+        self._local_settings = self._device_settings_p[0]
 
     def apply(self):
         self._settings_fix()
@@ -280,6 +284,11 @@ class PyJrk_Settings(object):
         self._pull_device_settings()
         e_p = self.jrklib.jrk_settings_to_string(byref(self._device_settings), byref(settings_str))
         self._logger.info(f"Device settings:\n{settings_str.value.decode()}")
+        return e_p
+    
+    @JED
+    def _jrk_restore_defaults(self):
+        e_p = self.jrklib.jrk_restore_defaults(byref(self._device_handle))
         return e_p
     
     def print_settings(self):
