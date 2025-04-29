@@ -247,7 +247,8 @@ class PyJrk_Settings(object):
         
     @JED
     def _pull_device_settings(self):
-        """Gets the current settings stored in the device's EEPROM memory.
+        """Gets the current settings stored in the device's EEPROM memory and write them 
+        to _device_settings_p.
         
         This method reads the current settings from the device's EEPROM and stores 
         them in _device_settings. This function is always called before calling a 
@@ -298,11 +299,9 @@ class PyJrk_Settings(object):
         return e_p
             
     @JED
-    def _settings_to_string(self):
-        settings_str = c_char_p()
+    def _settings_to_string(self, settings_str):
         self._pull_device_settings()
         e_p = self.jrklib.jrk_settings_to_string(byref(self._device_settings), byref(settings_str))
-        self._logger.info(f"Device settings:\n{settings_str.value.decode()}")
         return e_p
     
     @JED
@@ -311,7 +310,9 @@ class PyJrk_Settings(object):
         return e_p
     
     def print_settings(self):
-        self._settings_to_string()
+        settings_str = c_char_p()
+        self._settings_to_string(settings_str)
+        self._logger.debug(f"Device settings:\n{settings_str.value.decode()}")
 
     def load_config(self, config_file):
         with open(config_file, 'r') as ymlfile:
