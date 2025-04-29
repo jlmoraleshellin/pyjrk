@@ -161,16 +161,16 @@ class PyJrk_Variables(object):
         self._jrk_variables = self._jrk_variables_p[0]
         return e_p
 
-    def _get_jrk_readonly_property(self, field, obj):
+    def _get_jrk_readonly_property(self, field_name, _):
         self._update_jrk_variables()
-        value = getattr(self._jrk_variables, field)
-        if field == "error_status" or field == "error_occurred":
+        value = getattr(self._jrk_variables, field_name)
+        if field_name == "error_status" or field_name == "error_occurred":
             self._convert_error_bitmask(value)
         return value
 
-    def _get_pin_readonly_property(self, field, pin_num, obj):
+    def _get_pin_readonly_property(self, field_name, pin_num, _):
         self._update_jrk_variables()
-        return getattr(self._jrk_variables.pin_info[pin_num], field)
+        return getattr(self._jrk_variables.pin_info[pin_num], field_name)
 
     def _convert_error_bitmask(self, e_bit_mask):
         ecodes = ["JRK_ERROR_AWAITING_COMMAND",
