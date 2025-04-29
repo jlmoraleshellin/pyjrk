@@ -63,7 +63,6 @@ class PyJrk(object):
         file_path = os.path.dirname(os.path.abspath(__file__))
         if platform.system() == 'Windows':
             # Windows DLL paths
-            pass
             self.usblib = windll.LoadLibrary(file_path + "\\drivers\\x64\\libusbp-1.dll") # type: ignore
             self.jrklib = windll.LoadLibrary(file_path + "\\drivers\\x64\\libpololu-jrk2-1.dll") # type: ignore
         elif platform.system() == 'Linux':
@@ -72,11 +71,11 @@ class PyJrk(object):
             self.jrklib = CDLL(file_path + "/drivers/linux/libpololu-jrk2-1.so")
 
     def _create_jrk_command_attributes(self):
-        for c in self._commands:
-            if bool(c[1]):
-                setattr(self.__class__, c[0], partial(self._jrk_command_with_value, c[0], c[1]))
+        for cmd_name, value_c_type in self._commands:
+            if bool(value_c_type):
+                setattr(self.__class__, cmd_name, partial(self._jrk_command_with_value, cmd_name, value_c_type))
             else:
-                setattr(self.__class__, c[0], partial(self._jrk_command, c[0]))
+                setattr(self.__class__, cmd_name, partial(self._jrk_command, cmd_name))
 
     @JED
     def _jrk_command(self, cmd_name):
@@ -84,10 +83,10 @@ class PyJrk(object):
         return e_p
 
     @JED
-    def _jrk_command_with_value(self, cmd_name, c_type, value):
+    def _jrk_command_with_value(self, cmd_name, value_c_type, value):
         if 'JRK' in str(value):
             value = jc[value]
-        e_p = getattr(self.jrklib,'jrk_'+ cmd_name)(byref(self.handle), c_type(value))
+        e_p = getattr(self.jrklib,'jrk_'+ cmd_name)(byref(self.handle), value_c_type(value))
         return e_p
 
     @JED
@@ -145,15 +144,15 @@ class PyJrk_Variables(object):
         self._convert_structure_to_readonly_properties()
 
     def _convert_structure_to_readonly_properties(self):
-        for field in jrk_variables._fields_:
-            if not field[0] == 'pin_info':
-                prop = property(fget=partial(self._get_jrk_readonly_property, field[0]))
-                setattr(self.__class__, field[0], prop)
+        for field_name, field_type in jrk_variables._fields_:
+            if not field_name == 'pin_info':
+                prop = property(fget=partial(self._get_jrk_readonly_property, field_name))
+                setattr(self.__class__, field_name, prop)
         
         for i in range(0, jc['JRK_CONTROL_PIN_COUNT']):
-            for field in pin_info._fields_:
-                prop = property(fget=partial(self._get_pin_readonly_property, field[0], i))
-                setattr(self.pin_info[i].__class__, field[0], prop)
+            for field_name, field_type in pin_info._fields_:
+                prop = property(fget=partial(self._get_pin_readonly_property, field_name, i))
+                setattr(self.pin_info[i].__class__, field_name, prop)
 
     @JED
     def _update_jrk_variables(self):
@@ -213,17 +212,17 @@ class PyJrk_Settings(object):
         self._fill_with_defaults(product)
 
     def _convert_structure_to_properties(self):
-        for field in jrk_settings._fields_:
-            prop = property(fget=partial(self._get_jrk_settings_from_device, field[0]),
-                            fset=partial(self._set_jrk_settings_with_option, field[0]))
-            setattr(self.__class__, field[0], prop)
+        for field_name, field_type in jrk_settings._fields_:
+            prop = property(fget=partial(self._get_jrk_settings_from_device, field_name),
+                            fset=partial(self._set_jrk_settings_with_option, field_name))
+            setattr(self.__class__, field_name, prop)
 
-    def _get_jrk_settings_from_device(self, field, obj):
+    def _get_jrk_settings_from_device(self, field_name, _):
         self._pull_device_settings()
-        return getattr(self._device_settings, field)
+        return getattr(self._device_settings, field_name)
 
-    def _set_jrk_settings_with_option(self, field, obj, value):
-        setattr(self._local_settings, field, value)
+    def _set_jrk_settings_with_option(self, field_name, _, value):
+        setattr(self._local_settings, field_name, value)
         if (self.auto_apply):
             self.apply()
         
@@ -280,9 +279,7 @@ class PyJrk_Settings(object):
 
         cfg_settings = cfg['jrk_settings']
 
-        jrk_settings_list = []
-        for setting in jrk_settings._fields_:
-            jrk_settings_list.append(setting[0])
+        jrk_settings_list = [setting_name for setting_name, setting_type in jrk_settings._fields_]
 
         for setting in cfg_settings: 
             if setting in jrk_settings_list:
