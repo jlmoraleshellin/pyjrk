@@ -221,7 +221,7 @@ class PyJrk_Settings(object):
         self._device_settings_p = POINTER(jrk_settings)()
         
         self._convert_structure_to_properties()
-        self.auto_apply = False
+        self.auto_apply = True
 
         self._fill_with_defaults()
 
