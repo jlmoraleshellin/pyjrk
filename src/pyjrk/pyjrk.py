@@ -228,14 +228,26 @@ class PyJrk_Settings(object):
         
     @JED
     def _pull_device_settings(self):
-        e_p = self.jrklib.jrk_get_settings(byref(self._device_handle),
+        """Gets the current settings stored in the device's EEPROM memory.
+        
+        This method reads the current settings from the device's EEPROM and stores 
+        them in _device_settings. This function is always called before calling a 
+        getting a setting from the device via properties in order to refresh the settings.
+        """
+        e_p = self.jrklib.jrk_get_eeprom_settings(byref(self._device_handle),
                                       byref(self._device_settings_p))
         self._device_settings = self._device_settings_p[0]
         return e_p
 
     @JED
     def _set_settings(self):
-        e_p = self.jrklib.jrk_set_settings(byref(self._device_handle),
+        """Sets the controller settings based on _local_settings.
+
+        This method writes the previously configured settings stored in _local_settings 
+        to the device's EEPROM memory. The _local_settings variable must be properly 
+        set before calling this method.
+        """
+        e_p = self.jrklib.jrk_set_eeprom_settings(byref(self._device_handle),
                                       byref(self._local_settings))
         return e_p
         
