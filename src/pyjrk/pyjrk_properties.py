@@ -631,11 +631,3 @@ class PyJrkVariablesProperties(Protocol):
 
     @force_mode.setter
     def force_mode(self, value: int) -> None: ...
-
-    @property
-    def pin_info(
-        self,
-    ) -> list[tuple[int, ...]]: ...  # Assuming pin_info is a list/array of values
-
-    @pin_info.setter
-    def pin_info(self, value: list[tuple[int, ...]]) -> None: ...
