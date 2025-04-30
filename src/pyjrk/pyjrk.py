@@ -191,8 +191,9 @@ class PyJrkVariables(PyJrkVariablesProperties):
     def _get_jrk_readonly_property(self, field_name, _):
         self._update_jrk_variables()
         value = getattr(self._jrk_variables, field_name)
-        if field_name == "error_status" or field_name == "error_occurred":
-            self._convert_error_bitmask(value)
+        if field_name == "error_flags_halting" or field_name == "error_flags_occurred":
+            error_list = self._convert_error_bitmask(value)
+            self._logger.debug(error_list)
         return value
 
     def _get_pin_readonly_property(self, field_name, pin_num, _):
@@ -216,9 +217,11 @@ class PyJrkVariables(PyJrkVariablesProperties):
             "JRK_ERROR_SERIAL_TIMEOUT",
             "JRK_ERROR_HARD_OVERCURRENT",
         ]
+        error_list = []
         for code in ecodes:
             if (e_bit_mask >> jc[code]) & 1:
-                self._logger.error(code)
+                error_list.append(code)
+        return error_list
 
 
 class PyJrkEEPROMSettings(PyJrkSettingsBase):
