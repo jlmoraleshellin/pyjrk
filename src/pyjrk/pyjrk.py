@@ -2,36 +2,13 @@ import logging
 import os
 import platform
 from ctypes import *
-from functools import partial, wraps
-from typing import Callable, Protocol, runtime_checkable
+from functools import partial
+from typing import Callable
 
-import yaml
-
+from pyjrk.pyjrk_base import JED, LoggerProtocol, PyJrkSettingsBase
+from pyjrk.pyjrk_properties import PyJrkVariablesProperties
 from pyjrk.pyjrk_protocol import jrk_constant as jc
 from pyjrk.pyjrk_structures import *
-
-
-@runtime_checkable
-class LoggerProtocol(Protocol):
-    def info(self, message: str, *args, **kwargs) -> None: ...
-    def debug(self, message: str, *args, **kwargs) -> None: ...
-    def warning(self, message: str, *args, **kwargs) -> None: ...
-
-
-# [J]rk [E]rror [D]ecoder
-def JED(func):
-    @wraps(func)
-    def func_wrapper(*args, **kwargs):
-        _e_p = func(*args, **kwargs)
-        if bool(_e_p):
-            _e = cast(_e_p, POINTER(jrk_error))
-            _logger = logging.getLogger("PyJrk")
-            _logger.error(_e.contents.message)
-            return 1
-        else:
-            return 0
-
-    return func_wrapper
 
 
 class PyJrk:
@@ -48,7 +25,8 @@ class PyJrk:
 
         self.device = None
         self.handle = None
-        self.settings = None
+        self.eeprom_settings = None
+        self.ram_settings = None
         self.variables = None
         self._commands = [
             ("set_target", c_uint16),
@@ -157,10 +135,13 @@ class PyJrk:
             if serial_number == self._dev_pp[0][i].serial_number.decode("utf-8"):
                 self.device = self._dev_pp[0][i]
                 self._jrk_handle_open()
-                self.variables = PyJrk_Variables(
+                self.variables = PyJrkVariables(
                     self.handle, (self.usblib, self.jrklib), self._logger
                 )
-                self.settings = PyJrk_Settings(
+                self.eeprom_settings = PyJrkEEPROMSettings(
+                    self.handle, (self.usblib, self.jrklib), self._logger
+                )
+                self.ram_settings = PyJrkRAMSettings(
                     self.handle, (self.usblib, self.jrklib), self._logger
                 )
                 return 0
@@ -169,7 +150,7 @@ class PyJrk:
             return 1
 
 
-class PyJrk_Variables:
+class PyJrkVariables(PyJrkVariablesProperties):
     def __init__(self, device_handle, driver_handles, logger: LoggerProtocol):
         self._device_handle = device_handle
         self.usblib, self.jrklib = driver_handles
@@ -240,26 +221,43 @@ class PyJrk_Variables:
                 self._logger.error(code)
 
 
-class PyJrk_Settings:
+class PyJrkEEPROMSettings(PyJrkSettingsBase):
     def __init__(self, device_handle, driver_handles, logger: LoggerProtocol):
-        self._device_handle = device_handle
-        self.usblib, self.jrklib = driver_handles
-        self._logger = logger
+        super().__init__(device_handle, driver_handles, logger)
 
-        # local vs device - local settings on pc, device settings on jrk
-        self._local_settings = jrk_settings()
-        self._device_settings = jrk_settings()
-        self._device_settings_p = POINTER(jrk_settings)()
+    def _initialize_settings(self):
+        """Get current settings from eeprom and fill the _local_settings"""
+        self._get_eeprom_settings()
+        self._local_settings = self._device_settings_p[0]
 
-        self._convert_structure_to_properties()
-        self.auto_apply_to_ram = False
+    def _convert_structure_to_properties(self):
+        for field_name, field_type in jrk_settings._fields_:
+            prop = property(
+                fget=partial(self._get_jrk_setting_from_device, field_name),
+                fset=partial(self._set_jrk_setting_with_option, field_name),
+            )
+            setattr(self.__class__, field_name, prop)
 
-        self._initialize_settings()
+    def _get_jrk_setting_from_device(self, field_name: str, _):
+        self._get_eeprom_settings()
+        return getattr(self._device_settings, field_name)
 
-    # Maybe useful, need to # TEST
-    # def _create_jrk_settings(self):
-    #    e_p = self.jrklib.jrk_settings_create(byref(self._device_settings_p))
-    #    return e_p
+    def apply(self):
+        self._settings_fix()
+        self._set_eeprom_settings()
+        self._reinitialize()
+
+    def print(self):
+        settings_str = c_char_p()
+        self._get_eeprom_settings()
+        self._settings_to_string(settings_str)
+        self._logger.debug(f"Device EEPROM settings:\n{settings_str.value.decode()}")
+
+
+class PyJrkRAMSettings(PyJrkSettingsBase):
+    def __init__(self, device_handle, driver_handles, logger: LoggerProtocol):
+        super().__init__(device_handle, driver_handles, logger)
+        self.auto_apply = True
 
     def _initialize_settings(self):
         """Get current settings from eeprom, fill the _local_settings with them
@@ -268,156 +266,19 @@ class PyJrk_Settings:
         self._local_settings = self._device_settings_p[0]
         self._set_ram_settings()
 
-    def _convert_structure_to_properties(self):
-        for field_name, field_type in jrk_settings._fields_:
-            prop = property(
-                fget=partial(self._get_jrk_eeprom_setting_from_device, field_name),
-                fset=partial(self._set_jrk_setting_with_option, field_name),
-            )
-            ram_prop = property(
-                fget=partial(self._get_jrk_ram_setting_from_device, f"{field_name}_ram")
-            )
-            setattr(self.__class__, field_name, ram_prop)
-            setattr(self.__class__, field_name, prop)
-
-    def _get_jrk_eeprom_setting_from_device(self, field_name: str, _):
-        self._get_eeprom_settings()
+    def _get_jrk_setting_from_device(self, field_name: str, _):
+        self._get_ram_settings()
         return getattr(self._device_settings, field_name)
 
-    def _get_jrk_ram_setting_from_device(self, field_name: str, _):
-        self._get_ram_settings()
-        name = field_name.replace("_ram", "")
-        return getattr(self._device_settings, name)
-
-    def _set_jrk_setting_with_option(self, field_name, _, value):
-        setattr(self._local_settings, field_name, value)
-        if self.auto_apply_to_ram:
-            self.apply_to_ram()
-
-    @JED
-    def _get_eeprom_settings(self):
-        """Gets the current settings stored in the device's EEPROM memory and write them
-        to _device_settings_p.
-
-        This method reads the current settings from the device's EEPROM and stores
-        them in _device_settings. This function is always called before calling a
-        getting a setting from the device via properties in order to refresh the settings.
-        """
-        e_p = self.jrklib.jrk_get_eeprom_settings(
-            byref(self._device_handle), byref(self._device_settings_p)
-        )
-        self._device_settings = self._device_settings_p[0]
-        return e_p
-
-    @JED
-    def _set_eeprom_settings(self):
-        """Sets the controller settings based on _local_settings.
-
-        This method writes the previously configured settings stored in _local_settings
-        to the device's EEPROM memory. The _local_settings variable must be properly
-        set before calling this method.
-        """
-        e_p = self.jrklib.jrk_set_eeprom_settings(
-            byref(self._device_handle), byref(self._local_settings)
-        )
-        return e_p
-
-    @JED
-    def _get_ram_settings(self):
-        """Gets the current settings stored in the device's RAM memory and write them
-        to _device_settings_p.
-
-        This method reads the current settings from the device's RAM and stores
-        them in _device_settings.
-        """
-        e_p = self.jrklib.jrk_get_ram_settings(
-            byref(self._device_handle), byref(self._device_settings_p)
-        )
-        self._device_settings = self._device_settings_p[0]
-        return e_p
-
-    @JED
-    def _set_ram_settings(self):
-        """Sets the controller settings based on _local_settings.
-
-        This method writes the previously configured settings stored in _local_settings
-        to the device's RAM memory. The _local_settings variable must be properly
-        set before calling this method.
-        """
-        e_p = self.jrklib.jrk_set_ram_settings(
-            byref(self._device_handle), byref(self._local_settings)
-        )
-        return e_p
-
-    def apply_to_eeprom(self):
-        self._settings_fix()
-        self._set_eeprom_settings()
-        self._reinitialize
-
-    def apply_to_ram(self):
+    def apply(self):
         self._settings_fix()
         self._set_ram_settings()
 
-    @JED
-    def _settings_fix(self):
-        warnings_p = POINTER(c_char_p)()
-        e_p = self.jrklib.jrk_settings_fix(byref(self._local_settings), warnings_p)
-        if bool(warnings_p):
-            for w in warnings_p:
-                self._logger.warning(w)
-        return e_p
-
-    @JED
-    def _reinitialize(self):
-        e_p = self.jrklib.jrk_reinitialize(byref(self._device_handle))
-        return e_p
-
-    @JED
-    def _settings_to_string(self, settings_str, from_ram=False):
-        if from_ram:
-            self._get_ram_settings()
-        else:
-            self._get_eeprom_settings()
-        e_p = self.jrklib.jrk_settings_to_string(
-            byref(self._device_settings), byref(settings_str)
-        )
-        return e_p
-
-    @JED
-    def _jrk_restore_defaults(self):
-        e_p = self.jrklib.jrk_restore_defaults(byref(self._device_handle))
-        return e_p
-
-    def print_eeprom_settings(self):
+    def print(self):
         settings_str = c_char_p()
+        self._get_ram_settings()
         self._settings_to_string(settings_str)
-        self._logger.debug(f"Device EEPROM settings:\n{settings_str.value.decode()}")
-
-    def print_ram_settings(self):
-        settings_str = c_char_p()
-        self._settings_to_string(settings_str, from_ram=True)
         self._logger.debug(f"Device RAM settings:\n{settings_str.value.decode()}")
-
-    def load_config(self, config_file):
-        with open(config_file, "r") as ymlfile:
-            cfg = yaml.safe_load(ymlfile)
-
-        cfg_settings = cfg["jrk_settings"]
-
-        jrk_settings_list = [
-            setting_name for setting_name, setting_type in jrk_settings._fields_
-        ]
-
-        for setting in cfg_settings:
-            if setting in jrk_settings_list:
-                if "JRK" in str(cfg_settings[setting]):
-                    value = jc[cfg_settings[setting]]
-                else:
-                    value = cfg_settings[setting]
-                setattr(self._local_settings, setting, value)
-
-        if self.auto_apply_to_ram:
-            self.apply_to_ram()
 
 
 if __name__ == "__main__":
