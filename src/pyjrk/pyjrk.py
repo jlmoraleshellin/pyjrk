@@ -25,9 +25,9 @@ class PyJrk:
 
         self.device = None
         self.handle = None
-        self.eeprom_settings = None
-        self.ram_settings = None
-        self.variables = None
+        self.eeprom_settings: PyJrkEEPROMSettings = None
+        self.ram_settings: PyJrkRAMSettings = None
+        self.variables: PyJrkVariables = None
         self._commands = [
             ("set_target", c_uint16),
             ("stop_motor", None),
