@@ -1,4 +1,5 @@
 from ctypes import *
+
 from pyjrk.pyjrk_protocol import jrk_constant as j_const
 
 
