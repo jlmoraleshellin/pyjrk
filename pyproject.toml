@@ -1,8 +1,9 @@
 [tool.poetry]
 name = "pyjrk"
-version = "0.1.0"
+version = "0.0.0" # This is dynamically set by poetry-dynamic-versioning
 description = "Python API of pololu jrk-g2 C library"
 authors = ["Jose Luis Morales <jlmoraleshellin@gmail.com>"]
+license = "Apache-2.0"
 readme = "README.md"
 packages = [
     {include = "pyjrk", from = "src"}
@@ -12,7 +13,13 @@ packages = [
 python = "^3.12"
 pyyaml = "^6.0.2"
 
+[tool.poetry-dynamic-versioning]
+enable = true
+metadata = true
+dirty = true    
+style = "pep440"
+format-jinja = "{% if distance == 0 and not dirty %}{{ base }}{% else %}{{ base }}.dev{{ distance }}+{{ commit }}{% if dirty %}.dirty{% endif %}{% endif %}"
 
 [build-system]
-requires = ["poetry-core"]
+requires = ["poetry-core>=1.0.2", "poetry-dynamic-versioning"]
 build-backend = "poetry.core.masonry.api"
