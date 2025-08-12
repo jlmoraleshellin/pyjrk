@@ -31,8 +31,8 @@ class PyJrk:
         self._commands = [
             ("set_target", c_uint16),
             ("stop_motor", None),
-            ("force_duty_cycle_target", None),
-            ("force_duty_cycle", None),
+            ("force_duty_cycle_target", c_uint16),
+            ("force_duty_cycle", c_uint16),
             ("reinitialize", c_uint8),
         ]
         self._create_jrk_command_attributes()
